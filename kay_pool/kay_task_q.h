@@ -127,18 +127,26 @@ void task_queue_wait(task_queue_t *queue)
 
 task_t *task_queue_next_task(task_queue_t *queue)
 {
+    // Return NULL if the queue is NULL
     if (queue == NULL)
         return NULL;
 
+    // Get the head of the queue
     task_t *task = queue->head;
+
+    // Return NULL if the queue is empty
     if (task == NULL)
         return NULL;
 
+    // Update the head of the queue
     if (task->next == NULL)
+        // If the task is the only element in the queue, set head and tail to NULL
         queue->head = queue->tail = NULL;
     else
+        // Set the head to the next element in the queue
         queue->head = task->next;
 
+    // Return the task
     return task;
 }
 
