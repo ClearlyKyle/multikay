@@ -17,7 +17,13 @@ typedef struct task_queue
     bool            exit;          // Exit flag
 } task_queue_t;
 
-// Create a new task queue
+task_queue_t *task_queue_create(void);                 // Create a new task queue
+void          task_queue_destroy(task_queue_t *queue); // Destroy the task queue
+
+void    task_queue_add_task(task_queue_t *queue, task_t *task); // Add a task to the task queue
+void    task_queue_wait(task_queue_t *queue);                   // Wait for all tasks to finish
+task_t *task_queue_next_task(task_queue_t *queue);              // Get the next tast in the queue
+
 task_queue_t *task_queue_create(void)
 {
     task_queue_t *queue = (task_queue_t *)malloc(sizeof(task_queue_t));
@@ -57,7 +63,6 @@ task_queue_t *task_queue_create(void)
     return queue;
 }
 
-// Destroy the task queue
 void task_queue_destroy(task_queue_t *queue)
 {
     // Set the exit flag for all threads
@@ -70,13 +75,14 @@ void task_queue_destroy(task_queue_t *queue)
         free(task);
         task = next;
     }
+
     pthread_mutex_destroy(&queue->mutex);
     pthread_cond_destroy(&queue->work_cond);
     pthread_cond_destroy(&queue->working_cond);
+
     free(queue);
 }
 
-// Add a task to the task queue
 void task_queue_add_task(task_queue_t *queue, task_t *task)
 {
     if (task == NULL)
@@ -103,7 +109,7 @@ void task_queue_add_task(task_queue_t *queue, task_t *task)
     pthread_mutex_unlock(&queue->mutex);
 }
 
-void tpool_wait(task_queue_t *queue)
+void task_queue_wait(task_queue_t *queue)
 {
     if (queue == NULL)
         return;
@@ -111,7 +117,6 @@ void tpool_wait(task_queue_t *queue)
     pthread_mutex_lock(&(queue->mutex));
     while (1)
     {
-        printf("here\n");
         if (!queue->exit && (queue->working_count != 0))
             pthread_cond_wait(&(queue->working_cond), &(queue->mutex));
         else
@@ -120,7 +125,7 @@ void tpool_wait(task_queue_t *queue)
     pthread_mutex_unlock(&(queue->mutex));
 }
 
-task_t *get_next_task(task_queue_t *queue)
+task_t *task_queue_next_task(task_queue_t *queue)
 {
     if (queue == NULL)
         return NULL;

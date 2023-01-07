@@ -3,13 +3,6 @@
 
 #include <stdlib.h>
 
-#define my_free(ptr)                                                \
-    do                                                              \
-    {                                                               \
-        printf("Freeing variable '%s' at address %p\n", #ptr, ptr); \
-        free(ptr);                                                  \
-    } while (0)
-
 typedef struct task
 {
     void (*func)(void *); // Pointer to the function to be executed
@@ -39,10 +32,8 @@ task_t *create_task(void (*func)(void *), void *arg)
 
 void task_destroy(task_t *task)
 {
-    if (task == NULL)
-        return;
-    // free(task);
-    my_free(task);
+    if (task != NULL)
+        free(task);
 }
 
 #endif // __TASK_H__

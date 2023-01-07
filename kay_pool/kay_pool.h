@@ -6,7 +6,6 @@
 
 #include "kay_task_q.h"
 
-// A structure to represent a thread pool
 typedef struct thread_pool
 {
     int           num_threads; // Number of threads in the pool
@@ -14,10 +13,10 @@ typedef struct thread_pool
     task_queue_t *task_queue;  // Queue of tasks
 } thread_pool_t;
 
-thread_pool_t *create_thread_pool(int num_threads);         // Create a new thread pool
-void           add_task(thread_pool_t *pool, task_t *task); // Add a task to the thread pool
-static void   *execute_tasks(void *arg);                    // Execute tasks from the task queue
-void           destroy_thread_pool(thread_pool_t *pool);    // Destroy the thread pool
+thread_pool_t *thread_pool_create(int num_threads);                     // Create a new thread pool
+void           thread_pool_add_task(thread_pool_t *pool, task_t *task); // Add a task to the thread pool
+static void   *execute_tasks(void *arg);                                // Execute tasks from the task queue
+void           destroy_thread_pool(thread_pool_t *pool);                // Destroy the thread pool
 
 thread_pool_t *create_thread_pool(int num_threads)
 {
@@ -68,14 +67,11 @@ void add_task(thread_pool_t *pool, task_t *task)
     task_queue_add_task(pool->task_queue, task);
 }
 
-// Execute tasks from the task queue
-static int   thread_checker = 0;
 static void *execute_tasks(void *arg)
 {
     task_queue_t *queue = ((thread_pool_t *)arg)->task_queue;
     task_t       *task;
 
-    printf("execute_tasks has started : %d\n", thread_checker++);
     while (1)
     {
         pthread_mutex_lock(&(queue->mutex)); // Lock for getting work
@@ -86,28 +82,17 @@ static void *execute_tasks(void *arg)
             pthread_cond_wait(&(queue->work_cond), &(queue->mutex));
 
         if (queue->exit)
-        {
-            printf("Exit was called\n");
-            // pthread_mutex_unlock is called at end of function, to make it safe to break
             break;
-        }
 
-        task = get_next_task(queue);
+        task = task_queue_next_task(queue);
         queue->working_count++;
 
         pthread_mutex_unlock(&(queue->mutex)); // Unlock after work has been retrieved
 
-        if (task == NULL)
-            printf("TASK IS NULL\n");
-
         if (task != NULL)
         {
-            printf("performing task\n");
-            // A task was available, so execute it
-            (*task->func)(task->arg);
-
-            // Free the memory allocated for the task
-            free(task);
+            (*task->func)(task->arg); // A task was available, so execute it
+            free(task);               // Free the memory allocated for the task
         }
 
         pthread_mutex_lock(&(queue->mutex));
@@ -120,7 +105,8 @@ static void *execute_tasks(void *arg)
     }
 
     pthread_cond_signal(&(queue->working_cond));
-    pthread_mutex_unlock(&(queue->mutex));
+    pthread_mutex_unlock(&(queue->mutex)); // Unlock if (queue->exit) exit happens
+
     return NULL;
 }
 
@@ -130,15 +116,13 @@ void destroy_thread_pool(thread_pool_t *pool)
     if (pool == NULL)
         return;
 
-    tpool_wait(pool->task_queue);
+    task_queue_wait(pool->task_queue);
 
     task_t *current  = NULL;
     task_t *previous = NULL;
 
     task_queue_t *queue = pool->task_queue;
     pthread_mutex_lock(&(queue->mutex));
-
-    printf("clearing queue\n");
 
     current = queue->head;
     while (current != NULL)
@@ -157,8 +141,6 @@ void destroy_thread_pool(thread_pool_t *pool)
     pthread_cond_destroy(&(queue->working_cond));
 
     free(pool->task_queue);
-
-    printf("destroy_thread_pool COMPLETE!\n");
 }
 
 #endif // __POOL_H__

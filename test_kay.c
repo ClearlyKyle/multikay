@@ -21,14 +21,14 @@ static int result = 0;
 // A function that sets the global result to a specified value
 void set_result(void *value)
 {
-    printf("set_result : tid=%p\n", pthread_self());
+    // printf("set_result : tid=%p\n", pthread_self());
     result = *((int *)value);
 }
 
 // A function that sleeps for a specified number of seconds
 void sleep_func(void *arg)
 {
-    printf("sleep_func : tid=%p\n", pthread_self());
+    // printf("sleep_func : tid=%p\n", pthread_self());
     int seconds = *((int *)arg);
     SLEEP(seconds);
 }
@@ -57,10 +57,7 @@ void test_create_thread_pool()
         printf("create_thread_pool returned a pool with a NULL task queue\n");
         exit(1);
     }
-    SLEEP(1000);
-    printf("pool was created succefully, now destroying it!\n");
-
-    // tpool_wait(pool->task_queue);
+    SLEEP(3000);
 
     destroy_thread_pool(pool);
 }
@@ -96,18 +93,13 @@ void test_execute_tasks()
 
     add_task(pool, task);
 
-    printf("Tast setup and waiting for results...\n");
-
-    SLEEP(3000);
+    SLEEP(1000);
     if (result != 0)
     {
         printf("Task did not execute correctly\n");
         exit(1);
     }
-    else
-    {
-        printf("Task complete!\n");
-    }
+
     destroy_thread_pool(pool);
 }
 
