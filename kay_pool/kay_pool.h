@@ -39,7 +39,7 @@ thread_pool_t *create_thread_pool(int num_threads)
         return NULL;
     }
 
-    pool->task_queue = create_task_queue();
+    pool->task_queue = task_queue_create();
     if (pool->task_queue == NULL)
     {
         free(pool->threads);
@@ -65,29 +65,40 @@ thread_pool_t *create_thread_pool(int num_threads)
 // Add a task to the thread pool
 void add_task(thread_pool_t *pool, task_t *task)
 {
-    add_task_to_queue(pool->task_queue, task);
+    task_queue_add_task(pool->task_queue, task);
 }
 
 // Execute tasks from the task queue
 static int   thread_checker = 0;
 static void *execute_tasks(void *arg)
 {
-    thread_pool_t *pool = (thread_pool_t *)arg;
-    task_t        *task;
+    task_queue_t *queue = ((thread_pool_t *)arg)->task_queue;
+    task_t       *task;
 
     printf("execute_tasks has started : %d\n", thread_checker++);
     while (1)
     {
-        // Check the task queue for a task
-        task = get_next_task(pool->task_queue);
-        if (task == NULL)
-            printf("TASK IS NULL\n");
+        pthread_mutex_lock(&(queue->mutex)); // Lock for getting work
 
-        if (pool->task_queue->exit)
+        // Check the task queue for a task
+        // Wait for a task to be added to the queue
+        while (!queue->exit && queue->head == NULL)
+            pthread_cond_wait(&(queue->work_cond), &(queue->mutex));
+
+        if (queue->exit)
         {
             printf("Exit was called\n");
+            // pthread_mutex_unlock is called at end of function, to make it safe to break
             break;
         }
+
+        task = get_next_task(queue);
+        queue->working_count++;
+
+        pthread_mutex_unlock(&(queue->mutex)); // Unlock after work has been retrieved
+
+        if (task == NULL)
+            printf("TASK IS NULL\n");
 
         if (task != NULL)
         {
@@ -99,56 +110,35 @@ static void *execute_tasks(void *arg)
             free(task);
         }
 
-        pthread_mutex_lock(&(pool->task_queue->mutex));
-        if (!pool->task_queue->exit && pool->task_queue->head == NULL)
-            pthread_cond_signal(&(pool->task_queue->cond));
-        pthread_mutex_unlock(&(pool->task_queue->mutex));
+        pthread_mutex_lock(&(queue->mutex));
+        queue->working_count--;
+
+        if (!queue->exit && queue->head == NULL && queue->working_count == 0)
+            pthread_cond_signal(&(queue->working_cond));
+
+        pthread_mutex_unlock(&(queue->mutex));
     }
+
+    pthread_cond_signal(&(queue->working_cond));
+    pthread_mutex_unlock(&(queue->mutex));
     return NULL;
 }
 
 // Destroy the thread pool
 void destroy_thread_pool(thread_pool_t *pool)
 {
-    //// Set the exit flag for all threads
-    // pool->task_queue->exit = 1;
-
-    //// Wait for all threads to finish their current tasks
-    // pthread_mutex_lock(&pool->task_queue->mutex);
-    // pthread_cond_broadcast(&pool->task_queue->cond);
-    // pthread_mutex_unlock(&pool->task_queue->mutex);
-
-    //// Wait for the threads to terminate
-    // for (int i = 0; i < pool->num_threads; i++)
-    //{
-    //     printf("Freeing Thread %ld\n", i);
-    //     pthread_join(pool->threads[i], NULL);
-    // }
-
-    // printf("pthread_join comeplete\n");
-
-    //// Destroy the task queue
-    // destroy_task_queue(pool->task_queue);
-
-    //// Terminate the threads
-    //// for (int i = 0; i < pool->num_threads; i++)
-    ////{
-    ////    pthread_cancel(pool->threads[i]);
-    ////}
-
-    // free(pool->threads);
-
-    //// Free the memory allocated for the thread pool
-    // free(pool);
-
     if (pool == NULL)
         return;
+
+    tpool_wait(pool->task_queue);
 
     task_t *current  = NULL;
     task_t *previous = NULL;
 
     task_queue_t *queue = pool->task_queue;
     pthread_mutex_lock(&(queue->mutex));
+
+    printf("clearing queue\n");
 
     current = queue->head;
     while (current != NULL)
@@ -159,15 +149,16 @@ void destroy_thread_pool(thread_pool_t *pool)
     }
     queue->exit = true;
 
-    pthread_cond_broadcast(&(queue->cond));
+    pthread_cond_broadcast(&(queue->work_cond));
     pthread_mutex_unlock(&(queue->mutex));
 
-    tpool_wait(queue);
-
     pthread_mutex_destroy(&(queue->mutex));
-    pthread_cond_destroy(&(queue->cond));
+    pthread_cond_destroy(&(queue->work_cond));
+    pthread_cond_destroy(&(queue->working_cond));
 
-    free(queue);
+    free(pool->task_queue);
+
+    printf("destroy_thread_pool COMPLETE!\n");
 }
 
 #endif // __POOL_H__

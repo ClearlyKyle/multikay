@@ -8,15 +8,17 @@
 
 typedef struct task_queue
 {
-    pthread_mutex_t mutex; // Mutex to protect the queue
-    pthread_cond_t  cond;  // Condition variable to signal new tasks
-    task_t         *head;  // Head of the linked list of tasks
-    task_t         *tail;  // Tail of the linked list of tasks
-    bool            exit;  // Exit flag
+    pthread_mutex_t mutex;         // Mutex to protect the queue
+    pthread_cond_t  work_cond;     // Signals the threads that there is work to be processed
+    pthread_cond_t  working_cond;  // Signals when there are no threads processing
+    size_t          working_count; // How many threads are actively processing work
+    task_t         *head;          // Head of the linked list of tasks
+    task_t         *tail;          // Tail of the linked list of tasks
+    bool            exit;          // Exit flag
 } task_queue_t;
 
 // Create a new task queue
-task_queue_t *create_task_queue()
+task_queue_t *task_queue_create(void)
 {
     task_queue_t *queue = (task_queue_t *)malloc(sizeof(task_queue_t));
     if (queue == NULL)
@@ -32,9 +34,18 @@ task_queue_t *create_task_queue()
         return NULL;
     }
 
-    if (pthread_cond_init(&queue->cond, NULL) != 0)
+    if (pthread_cond_init(&queue->work_cond, NULL) != 0)
     {
-        perror("pthread_cond_init");
+        perror("pthread_cond_init : work_cond");
+        pthread_mutex_destroy(&queue->mutex);
+        free(queue);
+        return NULL;
+    }
+
+    if (pthread_cond_init(&queue->working_cond, NULL) != 0)
+    {
+        perror("pthread_cond_init : working_cond");
+        pthread_cond_destroy(&queue->work_cond);
         pthread_mutex_destroy(&queue->mutex);
         free(queue);
         return NULL;
@@ -47,7 +58,7 @@ task_queue_t *create_task_queue()
 }
 
 // Destroy the task queue
-void destroy_task_queue(task_queue_t *queue)
+void task_queue_destroy(task_queue_t *queue)
 {
     // Set the exit flag for all threads
     queue->exit = 1;
@@ -60,12 +71,13 @@ void destroy_task_queue(task_queue_t *queue)
         task = next;
     }
     pthread_mutex_destroy(&queue->mutex);
-    pthread_cond_destroy(&queue->cond);
+    pthread_cond_destroy(&queue->work_cond);
+    pthread_cond_destroy(&queue->working_cond);
     free(queue);
 }
 
 // Add a task to the task queue
-void add_task_to_queue(task_queue_t *queue, task_t *task)
+void task_queue_add_task(task_queue_t *queue, task_t *task)
 {
     if (task == NULL)
     {
@@ -86,8 +98,8 @@ void add_task_to_queue(task_queue_t *queue, task_t *task)
         queue->tail->next = task;
         queue->tail       = task;
     }
-    pthread_cond_broadcast(&queue->cond); // signal all threads that are waiting
-    // pthread_cond_signal(&queue->cond); // wake up single thread
+
+    pthread_cond_broadcast(&queue->working_cond); // signal all threads that are waiting
     pthread_mutex_unlock(&queue->mutex);
 }
 
@@ -99,8 +111,9 @@ void tpool_wait(task_queue_t *queue)
     pthread_mutex_lock(&(queue->mutex));
     while (1)
     {
-        if (!queue->exit)
-            pthread_cond_wait(&(queue->cond), &(queue->mutex));
+        printf("here\n");
+        if (!queue->exit && (queue->working_count != 0))
+            pthread_cond_wait(&(queue->working_cond), &(queue->mutex));
         else
             break;
     }
@@ -109,12 +122,6 @@ void tpool_wait(task_queue_t *queue)
 
 task_t *get_next_task(task_queue_t *queue)
 {
-    pthread_mutex_lock(&queue->mutex);
-
-    // Wait for a task to be added to the queue
-    while (!queue->exit && queue->head == NULL)
-        pthread_cond_wait(&queue->cond, &queue->mutex);
-
     if (queue == NULL)
         return NULL;
 
@@ -123,15 +130,10 @@ task_t *get_next_task(task_queue_t *queue)
         return NULL;
 
     if (task->next == NULL)
-    {
-        queue->head = NULL;
-        queue->tail = NULL;
-    }
+        queue->head = queue->tail = NULL;
     else
-    {
         queue->head = task->next;
-    }
-    pthread_mutex_unlock(&queue->mutex);
+
     return task;
 }
 
