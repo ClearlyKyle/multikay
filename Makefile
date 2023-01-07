@@ -1,9 +1,9 @@
 CC = gcc
-CFLAGS = -g -Wall -I./kay_pool
-LDFLAGS = -lpthread -mwindows
+CFLAGS=-g -Wall -Wuninitialized -Wstrict-prototypes -Wformat -I./kay_pool
+LDFLAGS=-lpthread -mwindows
 
-EXE_NAME = pool_test
-OBJ_DIR = bin
+EXE_NAME=pool_test
+OBJ_DIR=bin
 
 TEST_SRC := test_kay.c
 TEST_OBJ := $(TEST_SRC:.c=.o)
