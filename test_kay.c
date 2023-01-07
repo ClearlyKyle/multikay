@@ -36,7 +36,7 @@ void sleep_func(void *arg)
 // A test function that checks the return value of create_thread_pool
 void test_create_thread_pool()
 {
-    thread_pool_t *pool = create_thread_pool(4);
+    thread_pool_t *pool = thread_pool_create(4);
     if (pool == NULL)
     {
         printf("create_thread_pool returned NULL\n");
@@ -57,9 +57,9 @@ void test_create_thread_pool()
         printf("create_thread_pool returned a pool with a NULL task queue\n");
         exit(1);
     }
-    SLEEP(3000);
+    SLEEP(2000);
 
-    destroy_thread_pool(pool);
+    thread_pool_destroy(pool);
 }
 
 // A test function that checks the return value of create_task
@@ -87,11 +87,11 @@ void test_create_task()
 // A test function that checks the execution of tasks
 void test_execute_tasks()
 {
-    thread_pool_t *pool = create_thread_pool(1);
+    thread_pool_t *pool = thread_pool_create(1);
     int            arg  = 3;
     task_t        *task = create_task(sleep_func, &arg);
 
-    add_task(pool, task);
+    thread_pool_add_task(pool, task);
 
     SLEEP(1000);
     if (result != 0)
@@ -100,7 +100,7 @@ void test_execute_tasks()
         exit(1);
     }
 
-    destroy_thread_pool(pool);
+    thread_pool_destroy(pool);
 }
 
 int main()

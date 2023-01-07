@@ -15,10 +15,11 @@ typedef struct thread_pool
 
 thread_pool_t *thread_pool_create(int num_threads);                     // Create a new thread pool
 void           thread_pool_add_task(thread_pool_t *pool, task_t *task); // Add a task to the thread pool
-static void   *execute_tasks(void *arg);                                // Execute tasks from the task queue
-void           destroy_thread_pool(thread_pool_t *pool);                // Destroy the thread pool
+void           thread_pool_destroy(thread_pool_t *pool);                // Destroy the thread pool
 
-thread_pool_t *create_thread_pool(int num_threads)
+static void *execute_tasks(void *arg); // Execute tasks from the task queue
+
+thread_pool_t *thread_pool_create(int num_threads)
 {
     // Allocate memory for the thread pool
     thread_pool_t *pool = (thread_pool_t *)malloc(sizeof(thread_pool_t));
@@ -52,7 +53,7 @@ thread_pool_t *create_thread_pool(int num_threads)
         if (pthread_create(&pool->threads[i], NULL, execute_tasks, (void *)pool) != 0)
         {
             perror("pthread_create");
-            destroy_thread_pool(pool);
+            thread_pool_destroy(pool);
             return NULL;
         }
         pthread_detach(pool->threads[i]);
@@ -61,8 +62,7 @@ thread_pool_t *create_thread_pool(int num_threads)
     return pool;
 }
 
-// Add a task to the thread pool
-void add_task(thread_pool_t *pool, task_t *task)
+void thread_pool_add_task(thread_pool_t *pool, task_t *task)
 {
     task_queue_add_task(pool->task_queue, task);
 }
@@ -110,8 +110,7 @@ static void *execute_tasks(void *arg)
     return NULL;
 }
 
-// Destroy the thread pool
-void destroy_thread_pool(thread_pool_t *pool)
+void thread_pool_destroy(thread_pool_t *pool)
 {
     if (pool == NULL)
         return;
