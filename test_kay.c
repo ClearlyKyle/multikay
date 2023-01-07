@@ -55,6 +55,7 @@ void test_create_thread_pool()
         printf("create_thread_pool returned a pool with a NULL task queue\n");
         exit(1);
     }
+    printf("pool was created succefully, now destroying it!\n");
     destroy_thread_pool(pool);
 }
 
@@ -86,8 +87,12 @@ void test_execute_tasks()
     thread_pool_t *pool = create_thread_pool(1);
     int            arg  = 3;
     task_t        *task = create_task(sleep_func, &arg);
+
     add_task(pool, task);
-    SLEEP(1);
+
+    printf("Tast setup and waiting for results...\n");
+
+    SLEEP(5);
     if (result != 0)
     {
         printf("Task did not execute correctly\n");
@@ -104,9 +109,17 @@ int main()
 {
     printf("Starting tests...\n");
 
+    printf("[---START] test_create_thread_pool\n");
     test_create_thread_pool();
+    printf("[COMPLETE] test_create_thread_pool\n");
+
+    printf("[---START] test_create_task\n");
     test_create_task();
+    printf("[COMPLETE] test_create_task\n");
+
+    printf("[---START] test_execute_tasks\n");
     test_execute_tasks();
+    printf("[COMPLETE] test_execute_tasks\n");
 
     printf("All tests passed!\n");
     return 0;

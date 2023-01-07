@@ -12,6 +12,12 @@ typedef struct task
 
 task_t *create_task(void (*func)(void *), void *arg)
 {
+    if (func == NULL)
+    {
+        perror("void (*func)(void *)");
+        return NULL;
+    }
+
     task_t *task = (task_t *)malloc(sizeof(task_t));
     if (task == NULL)
     {
